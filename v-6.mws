@@ -1,0 +1,181 @@
+{VERSION 6 0 "IBM INTEL NT" "6.0" }
+{USTYLETAB {CSTYLE "Maple Input" -1 0 "Courier" 0 1 255 0 0 1 0 1 0 0 
+1 0 0 0 0 1 }{PSTYLE "Normal" -1 0 1 {CSTYLE "" -1 -1 "" 0 1 0 0 0 0 
+0 0 0 0 0 0 0 0 0 0 }0 0 0 -1 -1 -1 0 0 0 0 0 0 -1 0 }{PSTYLE "Text Ou
+tput" -1 2 1 {CSTYLE "" -1 -1 "Courier" 1 10 0 0 255 1 0 0 0 0 0 1 3 
+0 3 0 }1 0 0 -1 -1 -1 0 0 0 0 0 0 -1 0 }{PSTYLE "" 2 6 1 {CSTYLE "" 
+-1 -1 "" 0 1 0 0 0 0 0 0 0 0 0 0 2 0 0 0 }0 0 0 -1 -1 -1 0 0 0 0 0 0 
+-1 0 }}
+{SECT 0 {EXCHG {PARA 0 "> " 0 "" {MPLTEXT 1 0 9980 "# Independent exac
+t check of (41) in the 17-page manuscript.\n# Integer arrays represent
+ polynomials whose coefficients are divided by G.\n# The approximate c
+oefficients are certified by a contraction on the\n# real truncated po
+lynomial ring with norm sum(abs(coefficients)).\nVerifyFiniteLogConvex
+ity := module()\n    export Run;\n    local G, K, s, radix, blockLengt
+h, radixPower, bias, weights,\n          NormUnits, RoundUnits, Pack, \+
+Unpack, Multiply,\n          ThetaAndDerivative, Inverse;\n\n    NormU
+nits := proc(A, count)\n        local j, result;\n        result := 0;
+\n        for j from 0 to count-1 do\n            result := result+abs
+(A[j]);\n        end do;\n        return result;\n    end proc;\n\n   \+
+ RoundUnits := proc(value)\n        if value < 0 then\n            ret
+urn -iquo(-value, G);\n        end if;\n        return iquo(value, G);
+\n    end proc;\n\n    # Evaluate the signed coefficient vector at the
+ integer radix.\n    Pack := proc(A, first, count, depth)\n        if \+
+first >= count then\n            return 0;\n        end if;\n        i
+f depth = 0 then\n            return A[first];\n        end if;\n     \+
+   return procname(A, first, count, depth-1)\n             + radixPowe
+r[depth-1]*\n               procname(A, first+blockLength[depth-1], co
+unt, depth-1);\n    end proc;\n\n    Unpack := proc(encoded, A, first,
+ count, depth)\n        local high, divisor;\n        if first >= coun
+t then\n            return NULL;\n        end if;\n        if depth = \+
+0 then\n            A[first] := RoundUnits(encoded-radix/2);\n        \+
+    return NULL;\n        end if;\n        divisor := radixPower[depth
+-1];\n        high := iquo(encoded, divisor);\n        procname(encode
+d-high*divisor, A, first, count, depth-1);\n        procname(high, A, \+
+first+blockLength[depth-1], count, depth-1);\n        return NULL;\n  \+
+  end proc;\n\n    # Truncated product followed by rounding toward zer
+o on the grid.\n    # The bias makes each signed convolution coefficie
+nt a radix digit.\n    Multiply := proc(A, lenA, B, lenB, count)\n    \+
+    local aCount, bCount, depth, encoded, result;\n        aCount, bCo
+unt := min(lenA, count), min(lenB, count);\n        if 2*NormUnits(A, \+
+aCount)*NormUnits(B, bCount) >= radix then\n            error \"the co
+nvolution coefficients exceed the packing bound\";\n        end if;\n \+
+       depth := 0;\n        while blockLength[depth] < count do\n     \+
+       depth := depth+1;\n        end do;\n        encoded := irem(Pac
+k(A, 0, aCount, depth)*\n                        Pack(B, 0, bCount, de
+pth)+bias[depth],\n                        radixPower[depth]);\n      \+
+  if encoded < 0 then\n            encoded := encoded+radixPower[depth
+];\n        end if;\n        result := Array(0..count-1);\n        Unp
+ack(encoded, result, 0, count, depth);\n        return result;\n    en
+d proc;\n\n    ThetaAndDerivative := proc(P, lenP, count, derivativeCo
+unt)\n        local F, D, power, powerLength, k, j, shift, c;\n       \+
+ F := Array(0..count-1, fill=0);\n        D := Array(0..derivativeCoun
+t-1, fill=0);\n        F[0], D[0] := G, -G;\n        for j from 0 to m
+in(lenP, count)-1 do\n            F[j] := F[j]-P[j];\n        end do;
+\n        power, powerLength := P, lenP;\n        for k from 2 to K do
+\n            shift := k*(k-1)/2;\n            if shift >= count then
+\n                break;\n            end if;\n            c := weight
+s[k];\n            for j from 0 to min(powerLength, derivativeCount-sh
+ift)-1 do\n                D[j+shift] := D[j+shift]+RoundUnits(k*c*pow
+er[j]);\n            end do;\n            power := Multiply(power, pow
+erLength, P, lenP, count-shift);\n            powerLength := count-shi
+ft;\n            for j from 0 to powerLength-1 do\n                F[j
++shift] := F[j+shift]+RoundUnits(c*power[j]);\n            end do;\n  \+
+      end do;\n        return [F, D];\n    end proc;\n\n    Inverse :=
+ proc(D, count)\n        local V, m, nextLength, X, j;\n        if D[0
+] <> -G then\n            error \"the constant term of the derivative \+
+is not -1\";\n        end if;\n        V := Array(0..0, fill=-G);\n   \+
+     m := 1;\n        while m < count do\n            nextLength := mi
+n(2*m, count);\n            X := Multiply(D, nextLength, V, m, nextLen
+gth);\n            for j from 0 to nextLength-1 do\n                X[
+j] := -X[j];\n            end do;\n            X[0] := X[0]+2*G;\n    \+
+        V := Multiply(V, m, X, nextLength, nextLength);\n            m
+ := nextLength;\n        end do;\n        return V;\n    end proc;\n\n
+    Run := proc()\n        local limit, target, radiusUnits, j, k, m, \+
+nextLength, width,\n              P, nextP, F, D, V, tail, correction,
+ shift, ratio,\n              derivativeRatio, thetaTail, derivativeTa
+il, evalError,\n              product, normV, displacement, contractio
+n, n, a1, a2, a3,\n              upperSquare, gap, bestIndex, bestNume
+rator, bestDenominator;\n\n        limit := 60000;\n        target := \+
+limit+1;\n        G := 2^192;\n        radiusUnits := 2^92;\n        K
+ := 16;\n        s := 1546246693/5000000000;\n        radix := 2^448;
+\n\n        blockLength := Array(0..16);\n        radixPower := Array(
+0..16);\n        bias := Array(0..16);\n        blockLength[0], radixP
+ower[0], bias[0] := 1, radix, radix/2;\n        for j from 1 to 16 do
+\n            blockLength[j] := 2*blockLength[j-1];\n            radix
+Power[j] := radixPower[j-1]^2;\n            bias[j] := (1+radixPower[j
+-1])*bias[j-1];\n        end do;\n        weights := Array(2..K);\n   \+
+     for k from 2 to K do\n            weights[k] := (-1)^k*floor(G*s^
+(k*(k-1)/2));\n        end do;\n\n        P := Array(0..0, fill=G);\n \+
+       m := 1;\n        while m < target do\n            nextLength :=
+ min(2*m, target);\n            width := nextLength-m;\n            F,
+ D := op(ThetaAndDerivative(P, m, nextLength, width));\n            V \+
+:= Inverse(D, width);\n            tail := Array(0..width-1);\n       \+
+     for j from 0 to width-1 do\n                tail[j] := F[m+j];\n \+
+           end do;\n            correction := Multiply(V, width, tail,
+ width, width);\n            nextP := Array(0..nextLength-1);\n       \+
+     for j from 0 to m-1 do\n                nextP[j] := P[j];\n      \+
+      end do;\n            for j from 0 to width-1 do\n               \+
+ nextP[m+j] := -correction[j];\n            end do;\n            P, m \+
+:= nextP, nextLength;\n            printf(\"Approximation through degr
+ee %d\\n\", m-1);\n        end do;\n\n        if target >= G or s <= 0
+ or s >= 1/3 or\n           NormUnits(P, target)+radiusUnits >= 3*G th
+en\n            error \"the hypotheses of the norm estimates fail\";\n
+        end if;\n        shift := K*(K+1)/2;\n        ratio := 3*s^(K+
+1);\n        derivativeRatio := ratio*(K+2)/(K+1);\n        if derivat
+iveRatio >= 1 then\n            error \"the theta tail ratios are not \+
+below one\";\n        end if;\n        thetaTail := 3^(K+1)*s^shift/(1
+-ratio);\n        derivativeTail := (K+1)*3^K*s^shift/(1-derivativeRat
+io);\n        if max(thetaTail, derivativeTail) >= 1/G then\n         \+
+   error \"the theta tails exceed the allowed error\";\n        end if
+;\n\n        # Each rounded product costs at most target/G in norm. Th
+e\n        # error in P^k is <= target*3^(k-1)/G, so the norm of the\n
+        # computed power is <= 2*3^k. Rounding the scalar weights and
+\n        # their products costs at most another (2*k*3^k+target)/G\n \+
+       # for term k. Summing these errors and the omitted tail\n      \+
+  # gives the following bound for both F and its derivative.\n        \+
+evalError := (4*K^2*target*3^K+1)/G;\n        F, D := op(ThetaAndDeriv
+ative(P, target, target, target));\n        V := Inverse(D, target);\n
+        if V[0] <> -G then\n            error \"the approximate invers
+e is not a unit\";\n        end if;\n        normV := NormUnits(V, tar
+get)/G;\n        product := Multiply(D, target, V, target, target);\n \+
+       product[0] := product[0]-G;\n        displacement := normV*(Nor
+mUnits(F, target)/G+evalError);\n\n        # On the ball of radius 2^(
+-100), the second derivative\n        # has norm <= 2/3+(2/3)/(1-2/9) \+
+< 2, using s < 1/3.\n        # The following bounds certify Q -> Q - V
+*Psi(Q, s*z).\n        contraction := (NormUnits(product, target)+targ
+et)/G\n                       + normV*(evalError+2*radiusUnits/G);\n  \+
+      if displacement >= radiusUnits/(2*G) or contraction >= 1/2 then
+\n            error \"the contraction or the ball inclusion fails\";\n
+        end if;\n        printf(\"Displacement < 2^(-101) and contract
+ion factor < 1/2   PASS\\n\");\n        # V is a unit, and Psi(Q,s*z)=
+0 has one formal solution.\n        # The contraction thus encloses T(
+s*z) through degree 60000.\n        printf(\"Coefficient errors <= 2^(
+-100) through degree 60000   PASS\\n\");\n\n        for n from 0 to li
+mit do\n            if P[n] <= radiusUnits then\n                error
+ \"a coefficient enclosure is not positive at n = %1\", n;\n          \+
+  end if;\n        end do;\n\n        # The exact terms through q^3 fo
+llow from 1-T+q*T^2-q^3*T^3.\n        a1 := 1;\n        a2 := 2*a1;\n \+
+       a3 := 2*a2+a1^2-1;\n        if a1*a3 <> a2^2 then\n            \+
+error \"the exact equality at n = 2 fails\";\n        end if;\n       \+
+ printf(\"n = 2   a[1] = %a, a[2] = %a, a[3] = %a   equality PASS\\n\"
+,\n               a1, a2, a3);\n\n        bestIndex, bestNumerator, be
+stDenominator := 0, 0, 1;\n        for n from 1 to limit-1 do\n       \+
+     if n <> 2 then\n                upperSquare := (P[n]+radiusUnits)
+^2;\n                gap := (P[n-1]-radiusUnits)*(P[n+1]-radiusUnits)-
+upperSquare;\n                if 2500000000*gap <= upperSquare then\n \+
+                   error \"the strict bound in (41) fails at n = %1\",
+ n;\n                end if;\n                if bestIndex = 0 or gap*
+bestDenominator < bestNumerator*upperSquare then\n                    \+
+bestIndex, bestNumerator, bestDenominator := n, gap, upperSquare;\n   \+
+             end if;\n            end if;\n        end do;\n        pr
+intf(\"%d strict comparisons in (41)   PASS\\n\", limit-2);\n        p
+rintf(\"Smallest certified lower bound at n = %d is at least %a*10^(-2
+4)\\n\",\n               bestIndex, iquo(10^24*bestNumerator, bestDeno
+minator));\n        printf(\"All checks passed.\\n\");\n    end proc;
+\nend module:\n\nVerifyFiniteLogConvexity:-Run():" }}{PARA 6 "" 1 "" 
+{TEXT -1 30 "Approximation through degree 1" }}{PARA 6 "" 1 "" {TEXT 
+-1 30 "Approximation through degree 3" }}{PARA 6 "" 1 "" {TEXT -1 30 "
+Approximation through degree 7" }}{PARA 6 "" 1 "" {TEXT -1 31 "Approxi
+mation through degree 15" }}{PARA 6 "" 1 "" {TEXT -1 31 "Approximation
+ through degree 31" }}{PARA 6 "" 1 "" {TEXT -1 31 "Approximation throu
+gh degree 63" }}{PARA 6 "" 1 "" {TEXT -1 32 "Approximation through deg
+ree 127" }}{PARA 6 "" 1 "" {TEXT -1 32 "Approximation through degree 2
+55" }}{PARA 6 "" 1 "" {TEXT -1 32 "Approximation through degree 511" }
+}{PARA 6 "" 1 "" {TEXT -1 33 "Approximation through degree 1023" }}
+{PARA 6 "" 1 "" {TEXT -1 33 "Approximation through degree 2047" }}
+{PARA 6 "" 1 "" {TEXT -1 33 "Approximation through degree 4095" }}
+{PARA 6 "" 1 "" {TEXT -1 33 "Approximation through degree 8191" }}
+{PARA 6 "" 1 "" {TEXT -1 34 "Approximation through degree 16383" }}
+{PARA 6 "" 1 "" {TEXT -1 34 "Approximation through degree 32767" }}
+{PARA 6 "" 1 "" {TEXT -1 34 "Approximation through degree 60000" }}
+{PARA 6 "" 1 "" {TEXT -1 59 "Displacement < 2^(-101) and contraction f
+actor < 1/2   PASS" }}{PARA 6 "" 1 "" {TEXT -1 58 "Coefficient errors \+
+<= 2^(-100) through degree 60000   PASS" }}{PARA 6 "" 1 "" {TEXT -1 
+52 "n = 2   a[1] = 1, a[2] = 2, a[3] = 4   equality PASS" }}{PARA 6 "
+" 1 "" {TEXT -1 39 "59998 strict comparisons in (41)   PASS" }}{PARA 
+6 "" 1 "" {TEXT -1 80 "Smallest certified lower bound at n = 59999 is \+
+at least 416678837903839*10^(-24)" }}{PARA 6 "" 1 "" {TEXT -1 18 "All \+
+checks passed." }}}{EXCHG {PARA 0 "> " 0 "" {MPLTEXT 1 0 0 "" }}}}
+{MARK "1 0 0" 0 }{VIEWOPTS 1 1 0 1 1 1803 1 1 1 1 }{PAGENUMBERS 0 1 2 
+33 1 1 }
